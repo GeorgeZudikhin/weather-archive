@@ -1,16 +1,16 @@
-import { createBrowserRouter } from "react-router-dom";
-import CityPage from "@/pages/CityPage";
 import ErrorPage from "@/pages/ErrorPage";
-import WeatherArchiveAppPage from "@/pages/WeatherArchiveAppPage";
+import { createBrowserRouter } from "react-router-dom";
+import CityLoader from "./loaders/CityLoader";
+import CitySearch from "./pages/CitySearch";
 
 export const router = createBrowserRouter([
     {
         path: "/",
-        element: <WeatherArchiveAppPage />,
+        element: <CitySearch />,
         errorElement: <ErrorPage />,
     },
     {
         path: "cities/:cityValue",
-        element: <CityPage />,
+        element: <CityLoader />,
     },
 ]);

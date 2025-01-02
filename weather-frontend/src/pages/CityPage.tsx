@@ -1,20 +1,51 @@
-import { cities } from "@/types/cities";
-import { useState } from "react";
-import DatePicker from "react-datepicker";
-import Slider from "react-slider";
-import { useParams, useNavigate } from "react-router-dom";
-import Video from "@/components/Video";
+import { AvailableVideos } from "@/api/checkAvailableVideos/checkAvailableVideos";
 import Plot from "@/components/Plot";
-import "@/styles/slider.css";
+import Video from "@/components/Video";
+import { FormControl, InputLabel, MenuItem } from "@mui/material";
+import Select from "@mui/material/Select";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { DemoContainer } from "@mui/x-date-pickers/internals/demo";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { Dayjs } from "dayjs";
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-export default function CityPage() {
-    const { cityValue } = useParams<{ cityValue: string }>();
+interface CityPageProps {
+    cityValue: string;
+    availableVideos: AvailableVideos;
+}
+
+export default function CityPage({
+    cityValue,
+    availableVideos,
+}: Readonly<CityPageProps>) {
     const navigate = useNavigate();
+    const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null);
+    const [selectedHour, setSelectedHour] = useState<number | null>(null);
+    console.log(JSON.stringify(availableVideos));
 
-    const selectedCity = cities.find((city) => city.value === cityValue);
+    const availableDateStrings = useMemo(() => {
+        if (!availableVideos?.dates) return [];
+        return availableVideos.dates.map((d) => d.date);
+    }, [availableVideos]);
 
-    const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
-    const [selectedHour, setSelectedHour] = useState<number>(12);
+    const hoursForSelectedDate = useMemo(() => {
+        if (!selectedDate) return [];
+        const dateStr = selectedDate.format("YYYY-MM-DD");
+        const found = availableVideos.dates.find((d) => d.date === dateStr);
+        return found?.hours ?? [];
+    }, [selectedDate, availableVideos.dates]);
+
+    const shouldDisableDate = (day: Dayjs) => {
+        const dayStr = day.format("YYYY-MM-DD");
+        return !availableDateStrings.includes(dayStr);
+    };
+
+    const handleDateChange = (date: Dayjs | null) => {
+        setSelectedDate(date);
+        setSelectedHour(null);
+    };
 
     return (
         <>
@@ -25,42 +56,40 @@ export default function CityPage() {
                 Go Back
             </button>
             <div className="p-6 space-y-6">
-                <h1 className="text-4xl font-bold text-center">
-                    {selectedCity?.label}
-                </h1>
-
+                <h1 className="text-4xl font-bold text-center">{cityValue}</h1>
                 <Video />
                 <Plot />
-
-                <DatePicker
-                    selected={selectedDate}
-                    onChange={(date) => setSelectedDate(date)}
-                    className="px-4 py-2 border rounded-md text-center w-40"
-                />
-
-                <div className="flex flex-col items-center space-y-2">
-                    <p className="font-semibold">
-                        Selected Hour: {selectedHour}:00
-                    </p>
-                    <Slider
-                        className="w-64 h-5 react-slider"
-                        min={0}
-                        max={23}
-                        step={1}
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                    <DemoContainer components={["DatePicker"]}>
+                        <DatePicker
+                            label="Select a Date"
+                            value={selectedDate}
+                            onChange={handleDateChange}
+                            shouldDisableDate={shouldDisableDate}
+                        />
+                    </DemoContainer>
+                </LocalizationProvider>
+                <FormControl variant="outlined" fullWidth>
+                    <InputLabel id="select-hour-label">
+                        Select an Hour
+                    </InputLabel>
+                    <Select
+                        labelId="select-hour-label"
+                        id="hour-select"
+                        label="Select an Hour"
                         value={selectedHour}
-                        onChange={(value) => setSelectedHour(value)}
-                        thumbClassName="thumb"
-                        trackClassName="track"
-                        renderThumb={(props, state) => (
-                            <div
-                                {...props}
-                                className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center"
-                            >
-                                {state.valueNow}
-                            </div>
-                        )}
-                    />
-                </div>
+                        onChange={(event) =>
+                            setSelectedHour(event.target.value as number)
+                        }
+                        disabled={!selectedDate}
+                    >
+                        {hoursForSelectedDate.map((hour) => (
+                            <MenuItem key={hour} value={hour}>
+                                {hour}:00
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
             </div>
         </>
     );
