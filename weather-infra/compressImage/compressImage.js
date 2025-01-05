@@ -21,6 +21,7 @@ exports.handler = async (event) => {
   const record = event.Records[0];
   const bucketName = record.s3.bucket.name;
   const objectKey = decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '));
+  const compressedKey = objectKey.replace('non-compressed-images/', 'compressed-images/');
 
   if (!objectKey.startsWith('non-compressed-images/')) {
     return {
@@ -30,37 +31,11 @@ exports.handler = async (event) => {
   }
 
   try {
-    const originalImage = await s3.getObject({
-      Bucket: bucketName,
-      Key: objectKey,
-    }).promise();
-
-    const compressedImage = await sharp(originalImage.Body)
-      .resize(800) 
-      .jpeg({ quality: 80 })
-      .toBuffer();
-
-    const compressedKey = objectKey.replace('non-compressed-images/', 'compressed-images/');
-
-    await s3.putObject({
-      Bucket: bucketName,
-      Key: compressedKey,
-      Body: compressedImage,
-      ContentType: 'image/jpeg',
-    }).promise();
+    await uploadCompressedImageToS3(bucketName, objectKey, compressedKey);
 
     const client = new Client(RDS_CONFIG);
     await client.connect();
-
-    const updateQuery = `
-      UPDATE images
-      SET compressed_link = $1
-      WHERE non_compressed_link = $2
-    `;
-    await client.query(updateQuery, [
-      `https://${bucketName}.s3.${bucketRegion}.amazonaws.com/${compressedKey}`,
-      `https://${bucketName}.s3.${bucketRegion}.amazonaws.com/${objectKey}`,
-    ]);
+    await insertCompressedImageRecord(client, bucketName, objectKey, compressedKey);
     await client.end();
 
     return {
@@ -74,3 +49,35 @@ exports.handler = async (event) => {
     };
   }
 };
+
+async function uploadCompressedImageToS3(bucketName, objectKey, compressedKey) {
+  const originalImage = await s3.getObject({
+    Bucket: bucketName,
+    Key: objectKey,
+  }).promise();
+
+  const compressedImage = await sharp(originalImage.Body)
+    .resize(800) 
+    .jpeg({ quality: 80 })
+    .toBuffer();
+
+  await s3.putObject({
+    Bucket: bucketName,
+    Key: compressedKey,
+    Body: compressedImage,
+    ContentType: 'image/jpeg',
+  }).promise();
+}
+
+async function insertCompressedImageRecord(client, bucketName, objectKey, compressedKey) {
+  const updateQuery = `
+    UPDATE images
+    SET compressed_link = $1
+    WHERE non_compressed_link = $2
+  `;
+
+  await client.query(updateQuery, [
+    `https://${bucketName}.s3.${bucketRegion}.amazonaws.com/${compressedKey}`,
+    `https://${bucketName}.s3.${bucketRegion}.amazonaws.com/${objectKey}`,
+  ]);
+}

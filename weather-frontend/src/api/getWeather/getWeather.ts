@@ -1,19 +1,15 @@
 import { AxiosResponse } from "axios";
 import { apiClient } from "../api";
+import Metadata from "@/types/Metadata";
 
 export interface VideoResponse {
   video_url: string | null;
-  images: Array<{
-    timestamp: string;
-    temperature: number;
-    humidity: number;
-    air_pressure: number;
-  }>;
+  imagesMetadata: Metadata[];
 }
 
 export async function getWeather(topic: string, date: string, hour: number): Promise<VideoResponse> {
   const response: AxiosResponse<VideoResponse> = await apiClient.get<VideoResponse>(
-          `/getVideo?topic=${topic}&date=${date}&hour=${hour}`,
+          `/getWeather?topic=${topic}&date=${date}&hour=${hour}`,
       );
   return response.data;
 }

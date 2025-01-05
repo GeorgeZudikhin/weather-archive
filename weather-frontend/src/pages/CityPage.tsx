@@ -1,7 +1,11 @@
 import { AvailableVideos } from "@/api/checkAvailableVideos/checkAvailableVideos";
+import { getWeather } from "@/api/getWeather/getWeather";
+import BackButton from "@/components/BackButton";
 import Plot from "@/components/Plot";
 import Video from "@/components/Video";
+import Metadata from "@/types/Metadata";
 import { FormControl, InputLabel, MenuItem } from "@mui/material";
+import Button from "@mui/material/Button";
 import Select from "@mui/material/Select";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
@@ -9,7 +13,6 @@ import { DemoContainer } from "@mui/x-date-pickers/internals/demo";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { Dayjs } from "dayjs";
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 interface CityPageProps {
     cityValue: string;
@@ -20,9 +23,10 @@ export default function CityPage({
     cityValue,
     availableVideos,
 }: Readonly<CityPageProps>) {
-    const navigate = useNavigate();
     const [selectedDate, setSelectedDate] = useState<Dayjs | null>(null);
     const [selectedHour, setSelectedHour] = useState<number | null>(null);
+    const [videoUrl, setVideoUrl] = useState<string | null>(null);
+    const [imagesMetadata, setImagesMetadata] = useState<Metadata[]>([]);
     console.log(JSON.stringify(availableVideos));
 
     const availableDateStrings = useMemo(() => {
@@ -42,32 +46,56 @@ export default function CityPage({
         return !availableDateStrings.includes(dayStr);
     };
 
-    const handleDateChange = (date: Dayjs | null) => {
-        setSelectedDate(date);
-        setSelectedHour(null);
+    const selectedDateStr = selectedDate
+        ? selectedDate.format("YYYY-MM-DD")
+        : undefined;
+
+    const handleFindVideo = async () => {
+        const response = await getWeather(
+            cityValue,
+            selectedDateStr!,
+            selectedHour!,
+        );
+        console.log(JSON.stringify(response));
+        if (!response) return;
+
+        setVideoUrl(response.video_url ?? null);
+        setImagesMetadata(
+            response.imagesMetadata.map((item) => ({
+                ...item,
+                temperature: Number(item.temperature),
+                humidity: Number(item.humidity),
+                air_pressure: Number(item.air_pressure),
+            })),
+        );
     };
 
     return (
         <>
-            <button
-                onClick={() => navigate(-1)}
-                className="absolute top-6 left-6 rounded-lg border-zinc-400"
-            >
-                Go Back
-            </button>
-            <div className="p-6 space-y-6">
+            <BackButton />
+            <div className="flex flex-col justify-center items-center p-6 gap-6 max-w-lg mx-auto">
                 <h1 className="text-4xl font-bold text-center">{cityValue}</h1>
-                <Video />
-                <Plot />
+                <Video videoUrl={videoUrl} />
+                <Plot data={imagesMetadata} />
                 <LocalizationProvider dateAdapter={AdapterDayjs}>
-                    <DemoContainer components={["DatePicker"]}>
-                        <DatePicker
-                            label="Select a Date"
-                            value={selectedDate}
-                            onChange={handleDateChange}
-                            shouldDisableDate={shouldDisableDate}
-                        />
-                    </DemoContainer>
+                    <div className="w-full">
+                        <FormControl fullWidth>
+                            <DemoContainer components={["DatePicker"]}>
+                                <DatePicker
+                                    label="Select a Date"
+                                    className="w-full"
+                                    value={selectedDate}
+                                    onChange={(date) => {
+                                        setSelectedDate(date);
+                                        setSelectedHour(null);
+                                        setVideoUrl(null);
+                                        setImagesMetadata([]);
+                                    }}
+                                    shouldDisableDate={shouldDisableDate}
+                                />
+                            </DemoContainer>
+                        </FormControl>
+                    </div>
                 </LocalizationProvider>
                 <FormControl variant="outlined" fullWidth>
                     <InputLabel id="select-hour-label">
@@ -78,9 +106,11 @@ export default function CityPage({
                         id="hour-select"
                         label="Select an Hour"
                         value={selectedHour}
-                        onChange={(event) =>
-                            setSelectedHour(event.target.value as number)
-                        }
+                        onChange={(event) => {
+                            setSelectedHour(event.target.value as number);
+                            setVideoUrl(null);
+                            setImagesMetadata([]);
+                        }}
                         disabled={!selectedDate}
                     >
                         {hoursForSelectedDate.map((hour) => (
@@ -90,6 +120,14 @@ export default function CityPage({
                         ))}
                     </Select>
                 </FormControl>
+                <Button
+                    variant="contained"
+                    color="primary"
+                    disabled={!selectedDate || selectedHour == null}
+                    onClick={handleFindVideo}
+                >
+                    {"Find"}
+                </Button>
             </div>
         </>
     );
