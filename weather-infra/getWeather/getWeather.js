@@ -1,5 +1,6 @@
 const { Client } = require("pg");
 const { DateTime } = require("luxon");
+const Redis = require("ioredis");
 
 const RDS_CONFIG = {
   host: process.env.DB_HOST,
@@ -12,6 +13,14 @@ const RDS_CONFIG = {
   },
 };
 
+const redis = new Redis({
+  host: process.env.REDIS_HOST,
+  port: 6379,
+  tls: {
+    rejectUnauthorized: false 
+  }
+});
+
 exports.handler = async (event) => {
   try {
     const { topic, date, hour } = event.queryStringParameters || {};
@@ -19,6 +28,16 @@ exports.handler = async (event) => {
       return {
         statusCode: 400,
         body: JSON.stringify({ error: "Missing required parameters" }),
+      };
+    }
+
+    const cacheKey = `weather:${topic}:${date}:${hour}`;
+    const cachedData = await redis.get(cacheKey);
+    if (cachedData) {
+      console.log("Cache hit for: ", cacheKey);
+      return {
+        statusCode: 200,
+        body: cachedData,
       };
     }
 
@@ -33,18 +52,22 @@ exports.handler = async (event) => {
 
     await client.end();
 
+    const responseBody = JSON.stringify({
+      video_url: videoUrl,
+      imagesMetadata,
+    });
+
+    await redis.set(cacheKey, responseBody, "EX", 3600);
+
     return {
       statusCode: 200,
-      body: JSON.stringify({
-        video_url: videoUrl,
-        imagesMetadata,
-      }),
+      body: responseBody,
     };
   } catch (error) {
-    console.error("Error in getVideo lambda:", error);
+    console.error("Error in getWeather lambda:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Internal server error" }),
+      body: JSON.stringify({ error: "Internal server error: " + error }),
     };
   }
 };

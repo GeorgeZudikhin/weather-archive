@@ -1,7 +1,7 @@
 {
-  "name": "getweather",
+  "name": "webcamservice",
   "version": "1.0.0",
-  "main": "getWeather.js",
+  "main": "webcamService.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -10,8 +10,9 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "ioredis": "^5.4.2",
-    "luxon": "^3.5.0",
-    "pg": "^8.13.1"
+    "aws-sdk": "^2.1692.0",
+    "axios": "^1.7.9",
+    "crypto": "^1.0.1",
+    "form-data": "^4.0.1"
   }
 }

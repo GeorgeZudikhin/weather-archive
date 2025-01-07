@@ -33,11 +33,10 @@ exports.handler = async (event) => {
 
     const imageKey = `non-compressed-images/${topic}/${timestamp}.jpg`;
     const s3Url = `https://${process.env.S3_BUCKET}.s3.${bucketRegion}.amazonaws.com/${imageKey}`;
-    await uploadToS3(fileBuffer, imageKey);
-
+    
     const client = new Client(RDS_CONFIG);
     await client.connect();
-
+    
     await insertImageRecord({
       client,
       topic,
@@ -47,9 +46,10 @@ exports.handler = async (event) => {
       air_pressure: parseFloat(air_pressure),
       non_compressed_link: s3Url,
     });
-
+    
     await client.end();
-
+    
+    await uploadToS3(fileBuffer, imageKey);
     return {
         statusCode: 200,
         body: JSON.stringify({ message: 'Image uploaded successfully', imageUrl: s3Url }),

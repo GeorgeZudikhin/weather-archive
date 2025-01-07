@@ -2,9 +2,9 @@
 
 set -e
 
-FUNCTION_NAME="generateVideoVienna"  
-ZIP_FILE="generateVideoVienna.zip"   
-HANDLER="generateVideoVienna.handler"
+FUNCTION_NAME="webcamService"  
+ZIP_FILE="webcamService.zip"   
+HANDLER="webcamService.handler"
 
 if [ -f $ZIP_FILE ]; then
   echo "Removing old $ZIP_FILE"
@@ -12,7 +12,7 @@ if [ -f $ZIP_FILE ]; then
 fi
 
 echo "Creating deployment package..."
-zip -r $ZIP_FILE generateVideoVienna.js node_modules
+zip -r $ZIP_FILE webcamService.js node_modules
 
 echo "Updating AWS Lambda function: $FUNCTION_NAME..."
 aws lambda update-function-code \

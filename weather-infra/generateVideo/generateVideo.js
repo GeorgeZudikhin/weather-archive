@@ -19,19 +19,25 @@ const RDS_CONFIG = {
 
 const BUCKET_NAME = process.env.S3_BUCKET;
 const BUCKET_REGION = 'us-east-1';
-const topic = 'Vienna';
 
-exports.handler = async () => {
+exports.handler = async (event) => {
+  console.log("Event received: " + JSON.stringify(event));
+  const topic = event.topic || (event.body && JSON.parse(event.body).topic);
+  
+  if (!topic) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: "Topic is required" }),
+    };
+  }
+
   const PATH = process.env.PATH;
   process.env.PATH = `/opt/bin:${PATH}`;
 
   const now = DateTime.utc();
   const previousHour = now.minus({ hours: 1 });
-  // const dateString = previousHour.toISODate();
-  // const hourString = previousHour.hour.toString().padStart(2, '0');
-
-  const dateString = '2025-01-04';
-  const hourString = '22';
+  const dateString = previousHour.toISODate();
+  const hourString = previousHour.hour.toString().padStart(2, '0');
 
   const videoKey = `videos/${topic}/${dateString}_${hourString}-00.mp4`;
   const videoPath = `/tmp/${hourString}-00.mp4`;
@@ -40,16 +46,17 @@ exports.handler = async () => {
     const client = new Client(RDS_CONFIG);
     await client.connect();
 
-    const imageLinks = await getImageLinks(client, dateString, hourString);
+    const imageLinks = await getImageLinks(client, topic, dateString, hourString);
     if (!imageLinks.length) {
-      return { statusCode: 200, body: `No images found for this hour: ${dateString}-${hourString}.` };
+      console.log(`No images found for topic ${topic} for this hour: ${dateString}_${hourString}.`)
+      return { statusCode: 200, body: `No images found for this hour: ${dateString}_${hourString}.` };
     }
 
     const imagePaths = await saveS3ImagesToLocalStorage(imageLinks);
     const fileListPath = await createFileWithPathsToLocalImages(imagePaths);
     await generateVideo(fileListPath, videoPath); 
     await uploadVideoToS3(videoPath, videoKey);
-    await insertVideoRecord(client, videoKey, `${dateString}T${hourString}:00:00Z`);
+    await insertVideoRecord(client, topic, videoKey, `${dateString}T${hourString}:00:00Z`);
     
     await cleanUp(imagePaths, fileListPath, videoPath);
     await client.end();
@@ -61,11 +68,11 @@ exports.handler = async () => {
   }
 };
 
-async function getImageLinks(client, dateString, hourString) {
+async function getImageLinks(client, topic, dateString, hourString) {
   const query = `
       SELECT compressed_link
       FROM images
-      WHERE topic = $1 AND timestamp >= $2 AND timestamp < $3
+      WHERE topic = $1 AND timestamp >= $2 AND timestamp < $3 AND compressed_link IS NOT NULL
       ORDER BY timestamp ASC
     `;
   const startTime = `${dateString}T${hourString}:00:00Z`;
@@ -129,7 +136,7 @@ async function uploadVideoToS3(videoPath, videoKey) {
     .promise();
 }
 
-async function insertVideoRecord(client, videoKey, startTime) {
+async function insertVideoRecord(client, topic, videoKey, startTime) {
   const insertQuery = `
     INSERT INTO videos (topic, video_url, timestamp)
     VALUES ($1, $2, $3)
